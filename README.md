@@ -8,3 +8,23 @@ Enter a digit again to remove that note. Turn notes off to enter an answer;
 entering an answer clears that square's notes. Filled squares cannot receive notes.
 Select **Reset** and confirm to clear your entries and notes, or cancel to keep them.
 The shaded starting numbers stay locked.
+
+## HTML validation
+
+The **Validate HTML** GitHub Actions workflow runs when a pull request targeting
+`main` is opened, updated with new commits, or reopened. It checks `index.html`
+locally on the runner using `html-validate` 11.21.1 and its default recommended
+rules; validation errors fail the check.
+
+The validator checks HTML syntax and structure, element nesting, allowed
+attributes and values, duplicate IDs, and accessibility-related markup rules
+such as image alternative text and table headers. It also enforces markup
+conventions such as an uppercase `DOCTYPE`.
+It does not execute JavaScript, validate the dynamically generated Sudoku cells,
+test game behavior, or check CSS and visual layout.
+
+To run the same check locally with Node.js 24:
+
+```sh
+npx --yes html-validate@11.21.1 index.html
+```
