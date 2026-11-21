@@ -42,14 +42,26 @@
       background: #fff;
     }
 
+    .cell {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      border-right: 1px solid #a8b9c0;
+      border-bottom: 1px solid #a8b9c0;
+    }
+
+    .cell:nth-child(3n) { border-right: 2px solid #172a36; }
+    .cell:nth-child(9n) { border-right: 0; }
+    .cell:nth-child(n+19):nth-child(-n+27),
+    .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #172a36; }
+    .cell:nth-child(n+73) { border-bottom: 0; }
+
     #board input {
       box-sizing: border-box;
       width: 100%;
       height: 100%;
       padding: 0;
       border: 0;
-      border-right: 1px solid #a8b9c0;
-      border-bottom: 1px solid #a8b9c0;
       border-radius: 0;
       background: #fff;
       color: #065f55;
@@ -57,11 +69,22 @@
       text-align: center;
     }
 
-    #board input:nth-child(3n) { border-right: 2px solid #172a36; }
-    #board input:nth-child(9n) { border-right: 0; }
-    #board input:nth-child(n+19):nth-child(-n+27),
-    #board input:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #172a36; }
-    #board input:nth-child(n+73) { border-bottom: 0; }
+    .notes {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      pointer-events: none;
+      color: #065f55;
+      font-size: clamp(.5rem, 2vw, .8rem);
+      text-align: center;
+    }
+
+    .notes span {
+      display: grid;
+      place-items: center;
+    }
 
     #board input[readonly] {
       background: #e3ebee;
@@ -92,7 +115,7 @@
       cursor: pointer;
     }
 
-    #check {
+    #check, #notes-toggle[aria-pressed="true"] {
       background: #065f55;
       color: #fff;
     }
@@ -111,10 +134,11 @@
 <body>
   <main>
     <h1>Sudoku</h1>
-    <p id="instructions">Fill the empty squares with digits 1 to 9, without repeating a digit in any row, column, or 3-by-3 box. Shaded starting numbers are locked.</p>
+    <p id="instructions">Fill the empty squares with digits 1 to 9, without repeating a digit in any row, column, or 3-by-3 box. Shaded starting numbers are locked. Turn on Notes to toggle possible digits in empty squares; turn it off to enter an answer.</p>
     <div id="board" role="group" aria-label="Sudoku board" aria-describedby="instructions"></div>
     <div class="actions">
       <button type="button" id="check">Check Solution</button>
+      <button type="button" id="notes-toggle" aria-pressed="false">Notes: Off</button>
       <button type="button" id="reset">Reset</button>
     </div>
     <p id="status" role="status"></p>
@@ -135,31 +159,76 @@
 
     const board = document.getElementById('board');
     const status = document.getElementById('status');
+    const notesToggle = document.getElementById('notes-toggle');
+    let notesMode = false;
     const cells = Array.from(puzzle, (digit, index) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'cell';
       const cell = document.createElement('input');
+      const noteDisplay = document.createElement('div');
+      noteDisplay.className = 'notes';
+      noteDisplay.setAttribute('aria-hidden', 'true');
+      for (let number = 1; number <= 9; number++) {
+        noteDisplay.append(document.createElement('span'));
+      }
       const row = Math.floor(index / 9) + 1;
       const column = index % 9 + 1;
+      const entry = {
+        input: cell,
+        value: digit === '0' ? '' : digit,
+        notes: new Set(),
+        noteDisplay,
+        label: `Row ${row}, column ${column}${digit !== '0' ? ', given' : ''}`
+      };
       cell.type = 'text';
       cell.inputMode = 'numeric';
       cell.maxLength = 1;
       cell.autocomplete = 'off';
       cell.readOnly = digit !== '0';
-      cell.setAttribute('aria-label', `Row ${row}, column ${column}${cell.readOnly ? ', given' : ''}`);
+      cell.setAttribute('aria-label', entry.label);
       if (cell.readOnly) {
         cell.value = digit;
         cell.tabIndex = -1;
       } else {
         cell.addEventListener('input', () => {
-          cell.value = cell.value.match(/[1-9]/)?.[0] ?? '';
+          const number = cell.value.match(/[1-9]/)?.[0] ?? '';
+          if (notesMode) {
+            if (!entry.value && number) {
+              if (entry.notes.has(number)) entry.notes.delete(number);
+              else entry.notes.add(number);
+            }
+            cell.value = entry.value;
+          } else {
+            cell.value = number;
+            entry.value = number;
+            if (number) entry.notes.clear();
+          }
+          renderNotes(entry);
           status.textContent = '';
         });
       }
-      board.append(cell);
-      return cell;
+      wrapper.append(cell, noteDisplay);
+      board.append(wrapper);
+      return entry;
+    });
+
+    function renderNotes(entry) {
+      Array.from(entry.noteDisplay.children).forEach((slot, index) => {
+        const number = String(index + 1);
+        slot.textContent = entry.notes.has(number) ? number : '';
+      });
+      const candidates = Array.from(entry.notes).sort().join(', ');
+      entry.input.setAttribute('aria-label', `${entry.label}${candidates ? `, notes: ${candidates}` : ''}`);
+    }
+
+    notesToggle.addEventListener('click', () => {
+      notesMode = !notesMode;
+      notesToggle.setAttribute('aria-pressed', String(notesMode));
+      notesToggle.textContent = `Notes: ${notesMode ? 'On' : 'Off'}`;
     });
 
     document.getElementById('check').addEventListener('click', () => {
-      const answer = cells.map(cell => cell.value).join('');
+      const answer = cells.map(entry => entry.input.value).join('');
       if (answer.length < puzzle.length) {
         status.textContent = 'Incomplete: fill in every square before checking.';
       } else if (answer !== solution) {
@@ -170,10 +239,14 @@
     });
 
     document.getElementById('reset').addEventListener('click', () => {
-      if (!window.confirm('Reset the puzzle and clear all your entries?')) return;
+      if (!window.confirm('Reset the puzzle and clear all your entries and notes?')) return;
 
-      for (const cell of cells) {
-        if (!cell.readOnly) cell.value = '';
+      for (const entry of cells) {
+        if (entry.input.readOnly) continue;
+        entry.input.value = '';
+        entry.value = '';
+        entry.notes.clear();
+        renderNotes(entry);
       }
       status.textContent = 'Puzzle reset.';
     });
