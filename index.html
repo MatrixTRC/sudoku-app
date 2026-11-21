@@ -170,6 +170,8 @@
     });
 
     document.getElementById('reset').addEventListener('click', () => {
+      if (!window.confirm('Reset the puzzle and clear all your entries?')) return;
+
       for (const cell of cells) {
         if (!cell.readOnly) cell.value = '';
       }
