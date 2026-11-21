@@ -8,6 +8,8 @@ Enter a digit again to remove that note. Turn notes off to enter an answer;
 entering an answer clears that square's notes. Filled squares cannot receive notes.
 Select **Reset** and confirm to clear your entries and notes, or cancel to keep them.
 The shaded starting numbers stay locked.
+Select a numbered square to highlight every occurrence of that number.
+Select an empty square to clear the highlights; pencil notes do not count as answers.
 
 ## HTML validation
 

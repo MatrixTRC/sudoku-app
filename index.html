@@ -92,6 +92,10 @@
       font-weight: 700;
     }
 
+    #board input.matching {
+      background: #c6e8df;
+    }
+
     #board input:focus {
       outline: 2px solid #08776b;
       outline-offset: -2px;
@@ -186,6 +190,9 @@
       cell.autocomplete = 'off';
       cell.readOnly = digit !== '0';
       cell.setAttribute('aria-label', entry.label);
+      const selectCell = () => highlightNumber(cell.value);
+      cell.addEventListener('focus', selectCell);
+      cell.addEventListener('click', selectCell);
       if (cell.readOnly) {
         cell.value = digit;
         cell.tabIndex = -1;
@@ -204,6 +211,7 @@
             if (number) entry.notes.clear();
           }
           renderNotes(entry);
+          highlightNumber(cell.value);
           status.textContent = '';
         });
       }
@@ -211,6 +219,12 @@
       board.append(wrapper);
       return entry;
     });
+
+    function highlightNumber(number) {
+      for (const entry of cells) {
+        entry.input.classList.toggle('matching', number !== '' && entry.input.value === number);
+      }
+    }
 
     function renderNotes(entry) {
       Array.from(entry.noteDisplay.children).forEach((slot, index) => {
@@ -248,6 +262,7 @@
         entry.notes.clear();
         renderNotes(entry);
       }
+      highlightNumber('');
       status.textContent = 'Puzzle reset.';
     });
   </script>
