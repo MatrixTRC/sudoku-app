@@ -173,7 +173,7 @@
       <h1>Sudoku</h1>
       <p id="elapsed-time">Time: <span id="timer" role="timer" aria-label="Elapsed time">00:00</span></p>
     </div>
-    <p id="instructions">Fill the empty squares with digits 1 to 9, without repeating a digit in any row, column, or 3-by-3 box. Shaded starting numbers are locked. Turn on Notes to toggle possible digits in empty squares; turn it off to enter an answer.</p>
+    <p id="instructions">Fill the empty squares with digits 1 to 9, without repeating a digit in any row, column, or 3-by-3 box. Shaded starting numbers are locked. Use arrow keys to move between squares. Turn on Notes to toggle possible digits in empty squares; turn it off to enter an answer.</p>
     <div id="board" role="group" aria-label="Sudoku board" aria-describedby="instructions"></div>
     <div class="actions">
       <button type="button" id="check">Check Solution</button>
@@ -236,6 +236,19 @@
       const selectCell = () => highlightNumber(cell.value);
       cell.addEventListener('focus', selectCell);
       cell.addEventListener('click', selectCell);
+      cell.addEventListener('keydown', event => {
+        const direction = {
+          ArrowUp: [-1, 0],
+          ArrowDown: [1, 0],
+          ArrowLeft: [0, -1],
+          ArrowRight: [0, 1]
+        }[event.key];
+        if (!direction) return;
+        event.preventDefault();
+        const nextRow = Math.max(1, Math.min(9, row + direction[0]));
+        const nextColumn = Math.max(1, Math.min(9, column + direction[1]));
+        cells[(nextRow - 1) * 9 + nextColumn - 1].input.focus();
+      });
       if (cell.readOnly) {
         cell.value = digit;
       } else {
