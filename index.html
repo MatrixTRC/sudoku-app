@@ -14,7 +14,7 @@
 
     body {
       margin: 0;
-      padding: 2rem 1rem;
+      padding: 2rem .25rem;
     }
 
     main {
@@ -46,8 +46,8 @@
       position: relative;
       min-width: 0;
       min-height: 0;
-      border-right: 1px solid #a8b9c0;
-      border-bottom: 1px solid #a8b9c0;
+      border-right: 1px solid #657b83;
+      border-bottom: 1px solid #657b83;
     }
 
     .cell:nth-child(3n) { border-right: 2px solid #172a36; }
@@ -77,7 +77,8 @@
       grid-template-rows: repeat(3, 1fr);
       pointer-events: none;
       color: #065f55;
-      font-size: clamp(.5rem, 2vw, .8rem);
+      font-size: clamp(.5625rem, 2.8vw, .8rem);
+      line-height: 1;
       text-align: center;
     }
 
@@ -108,7 +109,16 @@
       margin-top: 1rem;
     }
 
+    @media (max-width: 30rem) {
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
     button {
+      min-width: 44px;
+      min-height: 44px;
       padding: .6rem 1rem;
       border: 1px solid #065f55;
       border-radius: .5rem;
@@ -122,6 +132,13 @@
     #check, #notes-toggle[aria-pressed="true"] {
       background: #065f55;
       color: #fff;
+    }
+
+    button:disabled {
+      border-color: #657b83;
+      background: #e3ebee;
+      color: #52636b;
+      cursor: not-allowed;
     }
 
     button:focus-visible {
@@ -198,7 +215,6 @@
       cell.addEventListener('click', selectCell);
       if (cell.readOnly) {
         cell.value = digit;
-        cell.tabIndex = -1;
       } else {
         cell.addEventListener('input', () => {
           const previousValue = entry.value;
