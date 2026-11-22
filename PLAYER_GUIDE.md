@@ -11,6 +11,16 @@ With **Notes: Off**, select an editable square and type a digit. To replace an
 answer, select its text and type another digit; use Backspace or Delete to clear it.
 You can select cells by clicking, tapping, or pressing Tab.
 
+## Arrow-key navigation
+
+With a square selected, use the Up, Down, Left, and Right arrow keys to move
+one square in that direction. Navigation includes shaded starting squares:
+you can select them to highlight matching numbers, but cannot edit them.
+
+At a board edge, an arrow pointing outside the board leaves you on the same
+square. Navigation does not wrap to another row or column. Moving between
+squares does not change answers or notes, start the timer, or create Undo history.
+
 ## Pencil notes
 
 Turn **Notes: On** to record possible digits in an empty square. Enter a digit
