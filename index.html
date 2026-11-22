@@ -143,6 +143,7 @@
     <div class="actions">
       <button type="button" id="check">Check Solution</button>
       <button type="button" id="notes-toggle" aria-pressed="false">Notes: Off</button>
+      <button type="button" id="undo" disabled>Undo</button>
       <button type="button" id="reset">Reset</button>
     </div>
     <p id="status" role="status"></p>
@@ -164,7 +165,9 @@
     const board = document.getElementById('board');
     const status = document.getElementById('status');
     const notesToggle = document.getElementById('notes-toggle');
+    const undoButton = document.getElementById('undo');
     let notesMode = false;
+    const undoHistory = [];
     const cells = Array.from(puzzle, (digit, index) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'cell';
@@ -198,6 +201,8 @@
         cell.tabIndex = -1;
       } else {
         cell.addEventListener('input', () => {
+          const previousValue = entry.value;
+          const previousNotes = new Set(entry.notes);
           const number = cell.value.match(/[1-9]/)?.[0] ?? '';
           if (notesMode) {
             if (!entry.value && number) {
@@ -209,6 +214,16 @@
             cell.value = number;
             entry.value = number;
             if (number) entry.notes.clear();
+          }
+          if (entry.value !== previousValue ||
+              [...entry.notes].sort().join(',') !== [...previousNotes].sort().join(',')) {
+            undoHistory.push({
+              type: 'cell',
+              entry,
+              value: previousValue,
+              notes: previousNotes
+            });
+            updateUndoState();
           }
           renderNotes(entry);
           highlightNumber(cell.value);
@@ -235,6 +250,35 @@
       entry.input.setAttribute('aria-label', `${entry.label}${candidates ? `, notes: ${candidates}` : ''}`);
     }
 
+    function updateUndoState() {
+      undoButton.disabled = undoHistory.length === 0;
+    }
+
+    undoButton.addEventListener('click', () => {
+      const edit = undoHistory.pop();
+      if (!edit) return;
+
+      if (edit.type === 'board') {
+        for (const snapshot of edit.cells) {
+          const entry = snapshot.entry;
+          entry.value = snapshot.value;
+          entry.input.value = snapshot.value;
+          entry.notes = new Set(snapshot.notes);
+          renderNotes(entry);
+        }
+        highlightNumber(document.activeElement?.value ?? '');
+      } else {
+        edit.entry.value = edit.value;
+        edit.entry.input.value = edit.value;
+        edit.entry.notes = new Set(edit.notes);
+        renderNotes(edit.entry);
+        highlightNumber(edit.entry.input.value);
+      }
+
+      updateUndoState();
+      status.textContent = 'Edit undone.';
+    });
+
     notesToggle.addEventListener('click', () => {
       notesMode = !notesMode;
       notesToggle.setAttribute('aria-pressed', String(notesMode));
@@ -255,12 +299,22 @@
     document.getElementById('reset').addEventListener('click', () => {
       if (!window.confirm('Reset the puzzle and clear all your entries and notes?')) return;
 
+      const snapshots = [];
       for (const entry of cells) {
         if (entry.input.readOnly) continue;
+        snapshots.push({
+          entry,
+          value: entry.value,
+          notes: new Set(entry.notes)
+        });
         entry.input.value = '';
         entry.value = '';
         entry.notes.clear();
         renderNotes(entry);
+      }
+      if (snapshots.length > 0) {
+        undoHistory.push({ type: 'board', cells: snapshots });
+        updateUndoState();
       }
       highlightNumber('');
       status.textContent = 'Puzzle reset.';

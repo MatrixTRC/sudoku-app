@@ -10,6 +10,7 @@ Select **Reset** and confirm to clear your entries and notes, or cancel to keep 
 The shaded starting numbers stay locked.
 Select a numbered square to highlight every occurrence of that number.
 Select an empty square to clear the highlights; pencil notes do not count as answers.
+Select **Undo** to reverse recent answer, pencil-note, and reset changes.
 
 ## HTML validation
 
