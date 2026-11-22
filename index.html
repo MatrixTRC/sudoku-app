@@ -165,6 +165,48 @@
       min-height: 1.5em;
       font-weight: 600;
     }
+
+    #result-form, #leaderboard {
+      margin-top: 1.5rem;
+    }
+
+    #result-form input {
+      box-sizing: border-box;
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      margin: .5rem 0;
+      padding: .6rem;
+      border: 1px solid #657b83;
+      border-radius: .5rem;
+      font: inherit;
+    }
+
+    #result-form input:focus-visible {
+      outline: 2px solid #065f55;
+      outline-offset: 2px;
+    }
+
+    #nickname-help, #save-status, #leaderboard-status {
+      overflow-wrap: anywhere;
+    }
+
+    #leaderboard table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+
+    #leaderboard th, #leaderboard td {
+      padding: .5rem .25rem;
+      border-bottom: 1px solid #657b83;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+
+    #leaderboard th:first-child { width: 15%; }
+    #leaderboard th:last-child { width: 35%; }
+    #leaderboard caption { margin-bottom: .5rem; }
   </style>
 </head>
 <body>
@@ -182,6 +224,26 @@
       <button type="button" id="reset">Reset</button>
     </div>
     <p id="status" role="status"></p>
+    <form id="result-form" hidden>
+      <label for="nickname">Player nickname</label>
+      <input id="nickname" name="nickname" type="text" required
+             autocomplete="nickname" aria-describedby="nickname-help">
+      <p id="nickname-help">Use 1 to 30 characters, with no surrounding whitespace or control characters. Your nickname and time will be public.</p>
+      <button type="submit" id="save-result">Save result</button>
+      <p id="save-status" role="status"></p>
+    </form>
+    <section id="leaderboard" aria-labelledby="leaderboard-heading">
+      <h2 id="leaderboard-heading">Leaderboard</h2>
+      <p id="leaderboard-status" role="status"></p>
+      <table id="leaderboard-table" hidden>
+        <caption>10 fastest times for this puzzle (minutes:seconds.milliseconds)</caption>
+        <thead>
+          <tr><th scope="col">Rank</th><th scope="col">Nickname</th><th scope="col">Time</th></tr>
+        </thead>
+        <tbody id="leaderboard-results"></tbody>
+      </table>
+      <button type="button" id="refresh-results">Refresh leaderboard</button>
+    </section>
     <noscript>Enable JavaScript to play Sudoku.</noscript>
   </main>
 
@@ -196,12 +258,26 @@
       '459371826', '321865497', '876942135',
       '284159763', '615437289', '937628541'
     ].join('');
+    const supabaseUrl = 'https://bnkxrhoyyyadwogglnzq.supabase.co';
+    const supabasePublishableKey = 'sb_publishable_O9CHVTFpAlERVICGq8GLaw_cOymt5wz';
+    const puzzleId = puzzle;
 
     const board = document.getElementById('board');
     const status = document.getElementById('status');
     const notesToggle = document.getElementById('notes-toggle');
     const undoButton = document.getElementById('undo');
     const timer = document.getElementById('timer');
+    const resultForm = document.getElementById('result-form');
+    const nickname = document.getElementById('nickname');
+    const saveButton = document.getElementById('save-result');
+    const saveStatus = document.getElementById('save-status');
+    const leaderboardStatus = document.getElementById('leaderboard-status');
+    const leaderboardTable = document.getElementById('leaderboard-table');
+    const leaderboardResults = document.getElementById('leaderboard-results');
+    const refreshButton = document.getElementById('refresh-results');
+    let attempt = { elapsedMs: null, saving: false, saved: false, uncertain: false };
+    let solved = false;
+    let leaderboardRequest = 0;
     let elapsedMilliseconds = 0;
     let timerStartedAt = null;
     let timerInterval = null;
@@ -276,6 +352,7 @@
               notes: previousNotes
             });
             updateUndoState();
+            invalidateSolution();
             startTimer();
           }
           renderNotes(entry);
@@ -291,6 +368,127 @@
     function getElapsedTime() {
       return elapsedMilliseconds + (timerStartedAt === null ? 0 : performance.now() - timerStartedAt);
     }
+
+    function invalidateSolution() {
+      solved = false;
+      resultForm.hidden = true;
+    }
+
+    function renderSaveState() {
+      resultForm.hidden = !solved;
+      saveButton.disabled = attempt.saving || attempt.saved || attempt.uncertain;
+      nickname.disabled = saveButton.disabled;
+      saveStatus.textContent = attempt.saving ? 'Saving result...' :
+        attempt.saved ? 'Result saved!' :
+        attempt.uncertain ? 'Could not confirm the save. It may have reached the server; refresh the leaderboard to check. Saving again is disabled to avoid duplicates.' : '';
+    }
+
+    async function resultsRequest(query, options = {}) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/game_results${query}`, {
+          ...options,
+          headers: {
+            apikey: supabasePublishableKey,
+            ...options.headers
+          },
+          signal: controller.signal
+        });
+        const data = options.method === 'POST' ? null : await response.json();
+        return { ok: response.ok, status: response.status, data };
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    function formatResultTime(milliseconds) {
+      const seconds = Math.floor(milliseconds / 1000);
+      return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.${String(milliseconds % 1000).padStart(3, '0')}`;
+    }
+
+    async function loadLeaderboard() {
+      const request = ++leaderboardRequest;
+      refreshButton.disabled = true;
+      leaderboardTable.hidden = true;
+      leaderboardStatus.textContent = 'Loading leaderboard...';
+      const query = new URLSearchParams({
+        select: 'player_nickname,elapsed_ms',
+        puzzle_id: `eq.${puzzleId}`,
+        order: 'elapsed_ms.asc,completed_at.asc,id.asc',
+        limit: '10'
+      });
+      try {
+        const response = await resultsRequest(`?${query}`);
+        if (!response.ok) throw new Error('Leaderboard request failed');
+        const results = response.data;
+        if (!Array.isArray(results)) throw new Error('Invalid leaderboard response');
+        if (request !== leaderboardRequest) return;
+        leaderboardResults.replaceChildren();
+        results.forEach((result, index) => {
+          const row = document.createElement('tr');
+          for (const value of [index + 1, result.player_nickname, formatResultTime(result.elapsed_ms)]) {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            row.append(cell);
+          }
+          leaderboardResults.append(row);
+        });
+        leaderboardTable.hidden = results.length === 0;
+        leaderboardStatus.textContent = results.length ? '' : 'No results yet. Be the first to finish and save!';
+      } catch {
+        if (request !== leaderboardRequest) return;
+        leaderboardStatus.textContent = 'Could not load the leaderboard. Check your connection and try Refresh leaderboard. You can still play offline.';
+      } finally {
+        if (request === leaderboardRequest) refreshButton.disabled = false;
+      }
+    }
+
+    nickname.addEventListener('input', () => nickname.setCustomValidity(''));
+    resultForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!solved || attempt.saving || attempt.saved || attempt.uncertain) return;
+      const playerNickname = nickname.value;
+      const validNickname = Array.from(playerNickname).length >= 1 &&
+        Array.from(playerNickname).length <= 30 &&
+        playerNickname === playerNickname.trim() &&
+        !/[\u0000-\u001f\u007f-\u009f]/u.test(playerNickname);
+      nickname.setCustomValidity(validNickname ? '' : 'Use 1 to 30 characters without surrounding whitespace or control characters.');
+      if (!resultForm.reportValidity()) return;
+      const submittedAttempt = attempt;
+      submittedAttempt.saving = true;
+      renderSaveState();
+      try {
+        const response = await resultsRequest('', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            player_nickname: playerNickname,
+            puzzle_id: puzzleId,
+            elapsed_ms: submittedAttempt.elapsedMs
+          })
+        });
+        if (response.ok) {
+          submittedAttempt.saved = true;
+        } else if (response.status >= 500) {
+          submittedAttempt.uncertain = true;
+        } else {
+          submittedAttempt.saving = false;
+          if (attempt === submittedAttempt) {
+            renderSaveState();
+            saveStatus.textContent = 'The server rejected the result. Check your nickname and try again.';
+          }
+          return;
+        }
+      } catch {
+        submittedAttempt.uncertain = true;
+      } finally {
+        submittedAttempt.saving = false;
+      }
+      if (attempt === submittedAttempt) renderSaveState();
+      if (submittedAttempt.saved) loadLeaderboard();
+    });
+    refreshButton.addEventListener('click', loadLeaderboard);
 
     function renderTimer() {
       const seconds = Math.floor(getElapsedTime() / 1000);
@@ -354,6 +552,7 @@
           renderNotes(entry);
         }
         restoreTimer(edit.timer);
+        attempt = edit.attempt;
         highlightNumber(document.activeElement?.value ?? '');
       } else {
         edit.entry.value = edit.value;
@@ -365,6 +564,7 @@
       }
 
       updateUndoState();
+      invalidateSolution();
       status.textContent = 'Edit undone.';
     });
 
@@ -383,6 +583,11 @@
       } else {
         stopTimer();
         status.textContent = 'Solved! You completed the puzzle.';
+        if (!solved && !attempt.saving && !attempt.saved && !attempt.uncertain) {
+          attempt.elapsedMs = Math.max(1, Math.round(getElapsedTime()));
+        }
+        solved = true;
+        renderSaveState();
       }
     });
 
@@ -404,13 +609,16 @@
         renderNotes(entry);
       }
       if (snapshots.length > 0) {
-        undoHistory.push({ type: 'board', cells: snapshots, timer: previousTimer });
+        undoHistory.push({ type: 'board', cells: snapshots, timer: previousTimer, attempt });
         updateUndoState();
       }
       restoreTimer({ elapsed: 0, started: false });
+      attempt = { elapsedMs: null, saving: false, saved: false, uncertain: false };
+      invalidateSolution();
       highlightNumber('');
       status.textContent = 'Puzzle reset.';
     });
+    loadLeaderboard();
   </script>
 </body>
 </html>

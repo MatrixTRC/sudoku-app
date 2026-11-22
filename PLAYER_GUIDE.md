@@ -1,6 +1,7 @@
 # Sudoku Player Guide
 
-Open `index.html` in a browser to play offline.
+Open `index.html` in a browser. Gameplay works offline; the leaderboard needs
+an internet connection.
 
 ## Rules and number entry
 
@@ -60,3 +61,26 @@ Selecting cells or toggling notes mode alone does not start it.
 A confirmed Reset returns it to zero. Undoing Reset restores the saved elapsed
 time and resumes timing if the game had started. Editing or undoing a solved
 board resumes from its stopped time. Ordinary Undo does not subtract time spent.
+
+## Saving a result and the leaderboard
+
+When **Check Solution** reports **Solved**, a nickname form appears. Enter
+1–30 characters with no surrounding whitespace or control characters, then select
+**Save result**. This saves the stopped elapsed time, including milliseconds.
+Your nickname and time will be visible to everyone; saving is optional.
+
+The leaderboard ranks the 10 fastest results for this puzzle, fastest first.
+Times are shown as minutes:seconds.milliseconds. Select **Refresh leaderboard**
+to load the latest results or retry a failed load. You can still play if the
+leaderboard is empty, unavailable, or offline.
+
+Save is disabled while submitting and after success. Editing or undoing hides the
+form until you check a solved board again; it does not allow a second save of an
+already saved attempt. Confirming Reset starts a new attempt. Undo Reset restores
+the earlier attempt, including whether it has already been saved.
+
+If the server rejects a result, correct your nickname or retry. If a connection
+failure, timeout, or server error makes the save outcome uncertain, saving again
+is disabled for that attempt to prevent duplicates. Refresh the leaderboard to
+check whether your result arrived. Results cannot be edited or deleted by visitors.
+They are self-reported, not independently verified puzzle completions.
