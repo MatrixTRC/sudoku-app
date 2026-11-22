@@ -11,6 +11,11 @@ The shaded starting numbers stay locked.
 Select a numbered square to highlight every occurrence of that number.
 Select an empty square to clear the highlights; pencil notes do not count as answers.
 Select **Undo** to reverse recent answer, pencil-note, and reset changes.
+The elapsed-time timer starts with your first answer or pencil-note change and
+stops when **Check Solution** reports Solved. A confirmed **Reset** clears the
+timer; canceling leaves it running or stopped as before. Undoing Reset restores
+the saved elapsed time and resumes timing if the game had started. Changing or
+undoing a solved board resumes timing from its stopped time.
 
 ## HTML validation
 

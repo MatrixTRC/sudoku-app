@@ -22,6 +22,21 @@
       margin: 0 auto;
     }
 
+    .heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: .75rem;
+    }
+
+    #elapsed-time {
+      margin: 0;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
     h1 {
       margin: 0;
       font-size: clamp(2.25rem, 8vw, 3.5rem);
@@ -154,7 +169,10 @@
 </head>
 <body>
   <main>
-    <h1>Sudoku</h1>
+    <div class="heading">
+      <h1>Sudoku</h1>
+      <p id="elapsed-time">Time: <span id="timer" role="timer" aria-label="Elapsed time">00:00</span></p>
+    </div>
     <p id="instructions">Fill the empty squares with digits 1 to 9, without repeating a digit in any row, column, or 3-by-3 box. Shaded starting numbers are locked. Turn on Notes to toggle possible digits in empty squares; turn it off to enter an answer.</p>
     <div id="board" role="group" aria-label="Sudoku board" aria-describedby="instructions"></div>
     <div class="actions">
@@ -183,6 +201,11 @@
     const status = document.getElementById('status');
     const notesToggle = document.getElementById('notes-toggle');
     const undoButton = document.getElementById('undo');
+    const timer = document.getElementById('timer');
+    let elapsedMilliseconds = 0;
+    let timerStartedAt = null;
+    let timerInterval = null;
+    let timerHasStarted = false;
     let notesMode = false;
     const undoHistory = [];
     const cells = Array.from(puzzle, (digit, index) => {
@@ -240,6 +263,7 @@
               notes: previousNotes
             });
             updateUndoState();
+            startTimer();
           }
           renderNotes(entry);
           highlightNumber(cell.value);
@@ -250,6 +274,40 @@
       board.append(wrapper);
       return entry;
     });
+
+    function getElapsedTime() {
+      return elapsedMilliseconds + (timerStartedAt === null ? 0 : performance.now() - timerStartedAt);
+    }
+
+    function renderTimer() {
+      const seconds = Math.floor(getElapsedTime() / 1000);
+      const minutes = Math.floor(seconds / 60);
+      timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+
+    function startTimer() {
+      if (timerStartedAt !== null) return;
+      timerHasStarted = true;
+      timerStartedAt = performance.now();
+      timerInterval = window.setInterval(renderTimer, 250);
+      renderTimer();
+    }
+
+    function stopTimer() {
+      elapsedMilliseconds = getElapsedTime();
+      timerStartedAt = null;
+      window.clearInterval(timerInterval);
+      timerInterval = null;
+      renderTimer();
+    }
+
+    function restoreTimer(snapshot) {
+      stopTimer();
+      elapsedMilliseconds = snapshot.elapsed;
+      timerHasStarted = snapshot.started;
+      if (timerHasStarted) startTimer();
+      else renderTimer();
+    }
 
     function highlightNumber(number) {
       for (const entry of cells) {
@@ -282,6 +340,7 @@
           entry.notes = new Set(snapshot.notes);
           renderNotes(entry);
         }
+        restoreTimer(edit.timer);
         highlightNumber(document.activeElement?.value ?? '');
       } else {
         edit.entry.value = edit.value;
@@ -289,6 +348,7 @@
         edit.entry.notes = new Set(edit.notes);
         renderNotes(edit.entry);
         highlightNumber(edit.entry.input.value);
+        startTimer();
       }
 
       updateUndoState();
@@ -308,6 +368,7 @@
       } else if (answer !== solution) {
         status.textContent = 'Incorrect: at least one number is out of place.';
       } else {
+        stopTimer();
         status.textContent = 'Solved! You completed the puzzle.';
       }
     });
@@ -315,6 +376,7 @@
     document.getElementById('reset').addEventListener('click', () => {
       if (!window.confirm('Reset the puzzle and clear all your entries and notes?')) return;
 
+      const previousTimer = { elapsed: getElapsedTime(), started: timerHasStarted };
       const snapshots = [];
       for (const entry of cells) {
         if (entry.input.readOnly) continue;
@@ -329,9 +391,10 @@
         renderNotes(entry);
       }
       if (snapshots.length > 0) {
-        undoHistory.push({ type: 'board', cells: snapshots });
+        undoHistory.push({ type: 'board', cells: snapshots, timer: previousTimer });
         updateUndoState();
       }
+      restoreTimer({ elapsed: 0, started: false });
       highlightNumber('');
       status.textContent = 'Puzzle reset.';
     });
